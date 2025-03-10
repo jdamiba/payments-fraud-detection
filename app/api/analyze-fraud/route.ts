@@ -36,65 +36,112 @@ async function createTransactionVector(payment: any) {
   return await getEmbedding(transactionText);
 }
 
-function calculateFraudScore(payment: any, similarTransactions: any[]): number {
-  let score = 0;
+interface FraudAnalysis {
+  score: number;
+  reasons: {
+    amount?: {
+      current: number;
+      typical: number;
+      difference: string;
+    };
+    location?: {
+      current: string;
+      typical: string[];
+    };
+    device?: {
+      current: string;
+      typical: string[];
+    };
+    paymentMethod?: {
+      current: string;
+      typical: string[];
+    };
+  };
+}
 
-  // Check if amount is significantly different from similar transactions
+function analyzeFraudFactors(
+  payment: any,
+  similarTransactions: any[]
+): FraudAnalysis {
+  const analysis: FraudAnalysis = {
+    score: 0,
+    reasons: {},
+  };
+
+  // Analyze amount
   const similarAmounts = similarTransactions.map((t) => t.payload.amount);
   const avgAmount =
     similarAmounts.reduce((a, b) => a + b, 0) / similarAmounts.length;
   if (payment.amount > avgAmount * 2) {
-    score += 0.3; // Unusual amount
+    analysis.score += 0.3;
+    analysis.reasons.amount = {
+      current: payment.amount,
+      typical: avgAmount,
+      difference: `${((payment.amount / avgAmount - 1) * 100).toFixed(
+        0
+      )}% higher`,
+    };
   }
 
-  // Check if device type is different from usual
-  const unusualDevice = !similarTransactions.some(
-    (t) => t.payload.device_type === payment.device_type
+  // Analyze device type
+  const deviceTypes = new Set(
+    similarTransactions.map((t) => t.payload.device_type)
   );
-  if (unusualDevice) {
-    score += 0.2; // Unusual device
+  if (!deviceTypes.has(payment.device_type)) {
+    analysis.score += 0.2;
+    analysis.reasons.device = {
+      current: payment.device_type,
+      typical: Array.from(deviceTypes),
+    };
   }
 
-  // Check if location is different from usual
-  const unusualLocation = !similarTransactions.some(
-    (t) =>
-      t.payload.location.city === payment.location.city &&
-      t.payload.location.state === payment.location.state
+  // Analyze location
+  const locations = new Set(
+    similarTransactions.map(
+      (t) => `${t.payload.location.city}, ${t.payload.location.state}`
+    )
   );
-  if (unusualLocation) {
-    score += 0.3; // Unusual location
+  const currentLocation = `${payment.location.city}, ${payment.location.state}`;
+  if (!locations.has(currentLocation)) {
+    analysis.score += 0.3;
+    analysis.reasons.location = {
+      current: currentLocation,
+      typical: Array.from(locations),
+    };
   }
 
-  // Check if payment method differs from usual
-  const unusualPaymentMethod = !similarTransactions.some(
-    (t) => t.payload.payment_method === payment.payment_method
+  // Analyze payment method
+  const paymentMethods = new Set(
+    similarTransactions.map((t) => t.payload.payment_method)
   );
-  if (unusualPaymentMethod) {
-    score += 0.2; // Unusual payment method
+  if (!paymentMethods.has(payment.payment_method)) {
+    analysis.score += 0.2;
+    analysis.reasons.paymentMethod = {
+      current: payment.payment_method,
+      typical: Array.from(paymentMethods),
+    };
   }
 
-  return Math.min(score, 1); // Normalize to 0-1 range
+  analysis.score = Math.min(analysis.score, 1);
+  return analysis;
 }
 
 export async function POST(request: Request) {
   try {
     const payment = await request.json();
-
-    // Get vector for the new transaction
     const vector = await createTransactionVector(payment);
 
-    // Search for similar transactions
     const searchResults = await qdrantClient.search(COLLECTION_NAME, {
       vector: vector,
-      limit: 5,
+      limit: 50,
       with_payload: true,
     });
 
-    // Calculate fraud score
-    const fraudScore = calculateFraudScore(payment, searchResults);
+    const analysis = analyzeFraudFactors(payment, searchResults);
 
     return NextResponse.json({
-      fraudScore,
+      fraudScore: analysis.score,
+      analysis: analysis.reasons,
       similarTransactions: searchResults,
     });
   } catch (error) {

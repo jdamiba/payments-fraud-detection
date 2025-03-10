@@ -1,0 +1,13 @@
+{
+  "amount": 15000.0,
+  "location": {
+    "city": "Lagos",
+    "state": "LA",
+    "country": "Nigeria"
+  },
+  "payment_method": "Wire Transfer",
+  "device_type": "unknown_device",
+  "retailer": "Global Electronics",
+  "retailer_category": "Electronics",
+  "time": "03:45:22"
+}

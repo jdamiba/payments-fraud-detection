@@ -8,6 +8,25 @@ export default function Home() {
   const [result, setResult] = useState<{
     fraudScore: number;
     similarTransactions: any[];
+    analysis?: {
+      amount?: {
+        current: number;
+        typical: number;
+        difference: string;
+      };
+      location?: {
+        current: string;
+        typical: string[];
+      };
+      device?: {
+        current: string;
+        typical: string[];
+      };
+      paymentMethod?: {
+        current: string;
+        typical: string[];
+      };
+    };
   } | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -62,7 +81,7 @@ export default function Home() {
             id="json-input"
             value={inputJson}
             onChange={(e) => setInputJson(e.target.value)}
-            className="w-full h-48 p-2 border rounded font-mono text-sm"
+            className="w-full h-48 p-2 border rounded font-mono text-sm text-white"
             placeholder='{
   "amount": 100,
   "location": {
@@ -95,8 +114,10 @@ export default function Home() {
       {result && (
         <div className="mt-8 space-y-6">
           <div className="p-4 bg-gray-100 rounded">
-            <h2 className="text-xl font-semibold mb-2">Analysis Result</h2>
-            <div className="space-y-2">
+            <h2 className="text-xl font-semibold mb-2 text-black">
+              Analysis Result
+            </h2>
+            <div className="space-y-2 text-gray-900">
               <p>
                 Fraud Score:{" "}
                 <span
@@ -134,20 +155,86 @@ export default function Home() {
 
           <div>
             <h3 className="text-lg font-semibold mb-2">
-              Similar Transactions Found:
+              {result.fraudScore > 0.7
+                ? "Fraud Detection Analysis"
+                : result.fraudScore > 0.4
+                ? "Unusual Patterns Detected"
+                : "Transaction Analysis"}
             </h3>
-            <div className="space-y-2">
-              {result.similarTransactions.map((transaction, index) => (
-                <div
-                  key={index}
-                  className="p-3 bg-gray-50 rounded border text-sm"
-                >
-                  <pre className="whitespace-pre-wrap">
-                    {JSON.stringify(transaction.payload, null, 2)}
-                  </pre>
-                </div>
-              ))}
-            </div>
+
+            {result.analysis && (
+              <div className="space-y-4 text-gray-900">
+                {result.analysis.amount && (
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <p className="font-medium text-red-600">Unusual Amount</p>
+                    <p>
+                      Current transaction: ${result.analysis.amount.current}
+                    </p>
+                    <p>Typical amount: ${result.analysis.amount.typical}</p>
+                    <p>Difference: {result.analysis.amount.difference}</p>
+                  </div>
+                )}
+
+                {result.analysis.location && (
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <p className="font-medium text-red-600">Unusual Location</p>
+                    <p>Current location: {result.analysis.location.current}</p>
+                    <p>
+                      Typical locations:{" "}
+                      {result.analysis.location.typical.join(", ")}
+                    </p>
+                  </div>
+                )}
+
+                {result.analysis.device && (
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <p className="font-medium text-red-600">Unusual Device</p>
+                    <p>Current device: {result.analysis.device.current}</p>
+                    <p>
+                      Typical devices:{" "}
+                      {result.analysis.device.typical.join(", ")}
+                    </p>
+                  </div>
+                )}
+
+                {result.analysis.paymentMethod && (
+                  <div className="p-3 bg-gray-50 rounded border">
+                    <p className="font-medium text-red-600">
+                      Unusual Payment Method
+                    </p>
+                    <p>
+                      Current method: {result.analysis.paymentMethod.current}
+                    </p>
+                    <p>
+                      Typical methods:{" "}
+                      {result.analysis.paymentMethod.typical.join(", ")}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {result.fraudScore <= 0.7 && (
+              <div className="mt-4 space-y-2">
+                <p className="text-gray-600 mb-4">
+                  {result.fraudScore > 0.4
+                    ? "This transaction shows some unusual patterns. Compare with these typical transactions:"
+                    : "This transaction matches patterns of known legitimate transactions:"}
+                </p>
+                {result.similarTransactions
+                  .slice(0, 5)
+                  .map((transaction, index) => (
+                    <div
+                      key={index}
+                      className="p-3 bg-gray-50 rounded border text-sm text-gray-900"
+                    >
+                      <pre className="whitespace-pre-wrap">
+                        {JSON.stringify(transaction.payload, null, 2)}
+                      </pre>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
       )}
